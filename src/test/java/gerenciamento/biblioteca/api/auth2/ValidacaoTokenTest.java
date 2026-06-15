@@ -2,37 +2,28 @@ package gerenciamento.biblioteca.api.auth2;
 
 import gerenciamento.biblioteca.api.auth2.DTO.CreationTokenDTO;
 import gerenciamento.biblioteca.api.auth2.DTO.TokenCreatedDTO;
-import gerenciamento.biblioteca.api.auth2.Entities.Situacao;
-import gerenciamento.biblioteca.api.auth2.Entities.Token;
-import gerenciamento.biblioteca.api.auth2.Entities.Usuario;
-import gerenciamento.biblioteca.api.auth2.Repositories.TokenRepository;
-import gerenciamento.biblioteca.api.auth2.Repositories.UsuarioRepository;
+import gerenciamento.biblioteca.api.auth2.Entities.Roles;
+import gerenciamento.biblioteca.api.auth2.Expections.RegistroInconsistenteException;
 import gerenciamento.biblioteca.api.auth2.Services.ManagementJWT;
 import gerenciamento.biblioteca.api.auth2.Services.TokenService;
-import net.minidev.json.JSONObject;
-import org.junit.jupiter.api.BeforeAll;
+import io.jsonwebtoken.ExpiredJwtException;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.FieldSource;
 import org.mockito.InjectMocks;
-import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.List;
+import java.util.*;
 
 @ExtendWith(MockitoExtension.class)
 public class ValidacaoTokenTest {
     /*
      * O cliente enviará o accessToken para verificar se ele não foi adulterado.
-     * Para verificar a adulteração, será obtido os dados do token e será pesquisado no banco de dados, se o mesmo existir.
-     * Se não foi adulterado, é retornado verdadeiro, caso contrário, retorna falso.
+     * Posteriormente é garantido que o ‘id’ é positivo e maior que zero.
      */
 
     @Spy
@@ -41,46 +32,67 @@ public class ValidacaoTokenTest {
     @InjectMocks
     private TokenService tokenService = new TokenService(managementJWT);
 
-    @Mock
-    private TokenRepository tokenRepository;
-
-    @Mock
-    private UsuarioRepository usuarioRepository;
-
-    private final static List<Usuario> listaDeUsuarios = new ArrayList<>();
-    private final static List<Token> listaDeTokens = new ArrayList<>();
-
-    @BeforeAll
-    public static void start() {
-        ObjectMapper mapper = new ObjectMapper();
-
-        for (var item : geradorDeTokenDTO()) {
-            String midSplit = item.accessToken().split("\\.")[1];
-            String payload = new String(Base64.getUrlDecoder().decode(midSplit));
-
-            JsonNode payloadJSON = mapper.readTree(payload);
-            int id = payloadJSON.has("sub") ? payloadJSON.get("sub").asInt() : 0;
-            String nome = payloadJSON.has("name") ? payloadJSON.get("name").asString() : "";
-            String email = payloadJSON.has("email") ? payloadJSON.get("email").asString() : "";
-
-            Usuario usuario = new Usuario(id, nome, email, "senha","telefone");
-
-            listaDeUsuarios.add(usuario);
-            listaDeTokens.add(new Token(id, usuario, item.refreshToken()));
-        }
-    }
+    private final static ObjectMapper mapper = new ObjectMapper();
+    private final static TokenCreatedDTO[] tokensDTO = geradorDeTokenDTO();
 
     @ParameterizedTest
-    @MethodSource("geradorDeTokenDTO")
-    public void tokenAdulterado(TokenCreatedDTO tokenDTO) {
+    @FieldSource("tokensDTO")
+    public void idTokenNegativo(TokenCreatedDTO tokenDTO) {
+        String midSplit = tokenDTO.accessToken().split("\\.")[1];
+        String payload = new String(Base64.getUrlDecoder().decode(midSplit));
 
+        Map<String, Object> mapa = mapper.readValue(payload, Map.class);
+        mapa.put("sub", Integer. parseInt(mapa.get("sub").toString()) * (-1));
+        String paylaodMapAdulterado = mapper.writeValueAsString(mapa);
+        String paylaodAdulterado = Base64.getUrlEncoder().withoutPadding().encodeToString(paylaodMapAdulterado.getBytes());
+
+        String accessTokenAdulterado = String.format("%s.%s.%s",
+                tokenDTO.accessToken().split("\\.")[0],
+                paylaodAdulterado,
+                tokenDTO.accessToken().split("\\.")[2]);
+
+        Assertions.assertThrows(RegistroInconsistenteException.class, () -> tokenService.validarToken(accessTokenAdulterado));
+    }
+
+    @Test
+    public void TokenExpirado() throws InterruptedException {
+        managementJWT = new ManagementJWT(1);
+
+        TokenCreatedDTO tokenDTO = managementJWT.criarTokens(
+                new CreationTokenDTO(1, "nome1", "email1", new String[] {String.valueOf(Roles.USER)}));
+        Thread.sleep(10);
+
+        Assertions.assertThrows(ExpiredJwtException.class, () -> tokenService.validarToken(tokenDTO.accessToken()));
+    }
+
+    @Test
+    public void TokenAdulterado() {
+        TokenCreatedDTO tokenDTO = managementJWT.criarTokens(
+                new CreationTokenDTO(1, "nome1", "email1", new String[] {String.valueOf(Roles.USER)}));
+
+        String midSplit = new String(Base64.getUrlDecoder().decode(tokenDTO.accessToken().split("\\.")[1]));
+        midSplit.replace("USER", "ADMIN");
+
+        String accessTokenAdulterado = tokenDTO.accessToken().split("\\.")[0] +
+                Base64.getUrlEncoder().encodeToString(midSplit.getBytes()) +
+                tokenDTO.accessToken().split("\\.")[2];
+
+        Assertions.assertThrows(RegistroInconsistenteException.class, () -> tokenService.validarToken(accessTokenAdulterado));
+    }
+
+    @Test
+    public void TokenValido() {
+        TokenCreatedDTO tokenDTO = managementJWT.criarTokens(
+                new CreationTokenDTO(1, "nome1", "email1", new String[] {String.valueOf(Roles.USER)}));
+
+        Assertions.assertDoesNotThrow(() -> tokenService.validarToken(tokenDTO.accessToken()));
     }
 
     private static TokenCreatedDTO[] geradorDeTokenDTO() {
         ManagementJWT managementJWT_Gerador = new ManagementJWT();
         return new TokenCreatedDTO[] {
-                managementJWT_Gerador.criarTokens(new CreationTokenDTO(1, "nome", "email", new String[] {"ROLE_USER"})),
-                managementJWT_Gerador.criarTokens(new CreationTokenDTO(2, "nome", "email", new String[] {"ROLE_ADMIN"}))
+                managementJWT_Gerador.criarTokens(new CreationTokenDTO(1, "nome1", "email1", new String[] {String.valueOf(Roles.USER)})),
+                managementJWT_Gerador.criarTokens(new CreationTokenDTO(2, "nome2", "email2", new String[] {String.valueOf(Roles.ADMIN)}))
         };
     }
 }

@@ -9,10 +9,14 @@ import gerenciamento.biblioteca.api.auth2.Expections.RegistroInexistenteExceptio
 import gerenciamento.biblioteca.api.auth2.Expections.RegistroJaExisteException;
 import gerenciamento.biblioteca.api.auth2.Repositories.TokenRepository;
 import gerenciamento.biblioteca.api.auth2.Repositories.UsuarioRepository;
+import io.jsonwebtoken.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.ObjectMapper;
 
-import java.util.Optional;
+import java.util.*;
+
+import static gerenciamento.biblioteca.api.auth2.Application.SECRET_KEY;
 
 @Service
 public class TokenService {
@@ -22,6 +26,7 @@ public class TokenService {
     private UsuarioRepository usuarioRepository;
 
     private ManagementJWT managementJWT;
+    private ObjectMapper mapper = new ObjectMapper();
 
     public TokenService() {
     }
@@ -46,7 +51,21 @@ public class TokenService {
         return tokenCreatedDTO;
     }
 
-    public boolean validarToken(TokenCreatedDTO token) {
-        return false;
+    public void validarToken(String accessToken) {
+        try {
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(SECRET_KEY)
+                    .build()
+                    .parseClaimsJws(accessToken)
+                    .getBody();
+
+            int id = Integer.parseInt(claims.getSubject());
+
+            if (id <= 0) throw new RegistroInconsistenteException("ID encontra-se incorreto (Menor ou igual a zero).");
+        } catch (ExpiredJwtException e) {
+            throw new ExpiredJwtException(e.getHeader(), e.getClaims(), "Token expirado!");
+        } catch (JwtException | IllegalArgumentException e) {
+            throw new RegistroInconsistenteException("Token inválido ou adulterado!");
+        }
     }
 }
