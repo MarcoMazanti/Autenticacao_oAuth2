@@ -2,6 +2,7 @@ package gerenciamento.biblioteca.api.auth2;
 
 import gerenciamento.biblioteca.api.auth2.DTO.CreationTokenDTO;
 import gerenciamento.biblioteca.api.auth2.DTO.TokenCreatedDTO;
+import gerenciamento.biblioteca.api.auth2.Entities.Roles;
 import gerenciamento.biblioteca.api.auth2.Entities.Usuario;
 import gerenciamento.biblioteca.api.auth2.Expections.RegistroInconsistenteException;
 import gerenciamento.biblioteca.api.auth2.Expections.RegistroInexistenteException;
@@ -96,8 +97,8 @@ public class CriacaoTokenTest {
 
     private static CreationTokenDTO[] geradorDeCreationTokenDTO() {
         return new CreationTokenDTO[] {
-                new CreationTokenDTO(1, "nome", "email", new String[] {"ROLE_USER"}),
-                new CreationTokenDTO(2, "nome", "email", new String[] {"ROLE_ADMIN"})
+                new CreationTokenDTO(1, "nome", "email", new String[] {String.valueOf(Roles.USER)}),
+                new CreationTokenDTO(2, "nome", "email", new String[] {String.valueOf(Roles.ADMIN)})
         };
     }
 }
