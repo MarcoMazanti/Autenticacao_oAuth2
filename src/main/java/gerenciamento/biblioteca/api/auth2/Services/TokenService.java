@@ -45,4 +45,8 @@ public class TokenService {
 
         return tokenCreatedDTO;
     }
+
+    public boolean validarToken(TokenCreatedDTO token) {
+        return false;
+    }
 }

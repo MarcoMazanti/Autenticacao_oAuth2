@@ -30,6 +30,12 @@ public class Token {
         this.refreshToken = refreshToken;
     }
 
+    public Token(Integer id, Usuario usuario, String refreshToken) {
+        this.id = id;
+        this.usuario = usuario;
+        this.refreshToken = refreshToken;
+    }
+
     public Token(Integer id, String refreshToken, Situacao situacao) {
         this.id = id;
         this.refreshToken = refreshToken;
