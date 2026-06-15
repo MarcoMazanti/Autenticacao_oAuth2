@@ -22,7 +22,7 @@ import java.util.*;
 @ExtendWith(MockitoExtension.class)
 public class ValidacaoTokenTest {
     /*
-     * O cliente enviará o accessToken para verificar se ele não foi adulterado.
+     * O cliente enviará o accessToken para verificar se ele não foi adulterado ou expirado.
      * Posteriormente é garantido que o ‘id’ é positivo e maior que zero.
      */
 

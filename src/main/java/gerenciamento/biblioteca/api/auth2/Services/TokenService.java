@@ -12,7 +12,6 @@ import gerenciamento.biblioteca.api.auth2.Repositories.UsuarioRepository;
 import io.jsonwebtoken.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import tools.jackson.databind.ObjectMapper;
 
 import java.util.*;
 
@@ -26,7 +25,6 @@ public class TokenService {
     private UsuarioRepository usuarioRepository;
 
     private ManagementJWT managementJWT;
-    private ObjectMapper mapper = new ObjectMapper();
 
     public TokenService() {
     }
