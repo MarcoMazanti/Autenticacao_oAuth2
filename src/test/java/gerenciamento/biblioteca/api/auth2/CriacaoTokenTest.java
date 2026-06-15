@@ -51,7 +51,6 @@ public class CriacaoTokenTest {
 
     @Mock
     private TokenRepository tokenRepository;
-
     @Mock
     private UsuarioRepository usuarioRepository;
 
