@@ -2,17 +2,20 @@ package gerenciamento.biblioteca.api.auth2.Services;
 
 import gerenciamento.biblioteca.api.auth2.DTO.CreationTokenDTO;
 import gerenciamento.biblioteca.api.auth2.DTO.TokenCreatedDTO;
+import gerenciamento.biblioteca.api.auth2.Entities.Situacao;
 import gerenciamento.biblioteca.api.auth2.Entities.Token;
 import gerenciamento.biblioteca.api.auth2.Entities.Usuario;
-import gerenciamento.biblioteca.api.auth2.Expections.RegistroInconsistenteException;
-import gerenciamento.biblioteca.api.auth2.Expections.RegistroInexistenteException;
-import gerenciamento.biblioteca.api.auth2.Expections.RegistroJaExisteException;
+import gerenciamento.biblioteca.api.auth2.Expections.*;
 import gerenciamento.biblioteca.api.auth2.Repositories.TokenRepository;
 import gerenciamento.biblioteca.api.auth2.Repositories.UsuarioRepository;
 import io.jsonwebtoken.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 import static gerenciamento.biblioteca.api.auth2.Application.SECRET_KEY;
@@ -25,6 +28,7 @@ public class TokenService {
     private UsuarioRepository usuarioRepository;
 
     private ManagementJWT managementJWT;
+    private final static ObjectMapper mapper = new ObjectMapper();
 
     public TokenService() {
     }
@@ -65,5 +69,30 @@ public class TokenService {
         } catch (JwtException | IllegalArgumentException e) {
             throw new RegistroInconsistenteException("Token inválido ou adulterado!");
         }
+    }
+
+    public String atualizarToken(TokenCreatedDTO tokenCreatedDTO) {
+        Optional<Token> tokenOpt = tokenRepository.findByRefreshToken(tokenCreatedDTO.refreshToken());
+
+        if (tokenOpt.isEmpty()) throw new RegistroInexistenteException("Token não encontrado no banco.");
+        Token token = tokenOpt.get();
+
+        if (token.getSituacao() == Situacao.INATIVO || token.getDataExpiracao().isBefore(LocalDateTime.now())) throw new TokenExpiradoException("Token expirado.");
+        if (token.getSituacao() == Situacao.BLOQUEADO) throw new UsuarioBloqueadoException("Token bloqueado.");
+
+        String midSplit = tokenCreatedDTO.accessToken().split("\\.")[1];
+        JsonNode payload = mapper.readTree(new String(Base64.getUrlDecoder().decode(midSplit)));
+
+        ArrayNode rolesNode = payload.get("roles").asArray();
+        ArrayList<String> roles = new ArrayList<>();
+
+        for (JsonNode roleNode : rolesNode) roles.add(roleNode.asString());
+        CreationTokenDTO tokenDTO = new CreationTokenDTO(
+                token.getUsuario().getId(),
+                token.getUsuario().getNome(),
+                token.getUsuario().getEmail(),
+                roles.toArray(new String[0]));
+
+        return managementJWT.criarAccessToken(tokenDTO);
     }
 }
