@@ -2,10 +2,12 @@ package gerenciamento.biblioteca.api.auth2.Services;
 
 import gerenciamento.biblioteca.api.auth2.DTO.CreationTokenDTO;
 import gerenciamento.biblioteca.api.auth2.DTO.TokenCreatedDTO;
+import gerenciamento.biblioteca.api.auth2.Entities.Roles;
 import gerenciamento.biblioteca.api.auth2.Entities.Situacao;
 import gerenciamento.biblioteca.api.auth2.Entities.Token;
 import gerenciamento.biblioteca.api.auth2.Entities.Usuario;
 import gerenciamento.biblioteca.api.auth2.Expections.*;
+import gerenciamento.biblioteca.api.auth2.Externals.BibliotecaAPI;
 import gerenciamento.biblioteca.api.auth2.Repositories.TokenRepository;
 import gerenciamento.biblioteca.api.auth2.Repositories.UsuarioRepository;
 import io.jsonwebtoken.*;
@@ -26,6 +28,8 @@ public class TokenService {
     private TokenRepository tokenRepository;
     @Autowired
     private UsuarioRepository usuarioRepository;
+    @Autowired
+    private BibliotecaAPI bibliotecaAPI;
 
     private ManagementJWT managementJWT;
     private final static ObjectMapper mapper = new ObjectMapper();
@@ -94,5 +98,35 @@ public class TokenService {
                 roles.toArray(new String[0]));
 
         return managementJWT.criarAccessToken(tokenDTO);
+    }
+
+    public Situacao atualizarSituacao(int idRequerinte, int idAlvo) {
+        if (idRequerinte <= 0 || idAlvo <= 0) throw new DadosInvalidosException("Não existe IDs menores ou iguais a zero!");
+        if (idRequerinte == idAlvo) throw new AlteracaoNegadaException("O usuário não pode se auto bloquear ou desbloquear!");
+
+        List<Roles> rolesList = bibliotecaAPI.getRolesByUserId(idRequerinte);
+
+        if (rolesList.isEmpty()) throw new RegistroInexistenteException("Objeto recebido encontra-se vazio.");
+
+        if (rolesList.contains(Roles.ADMIN)) {
+            Optional<Token> optionalToken = tokenRepository.findByUsuarioId(idAlvo);
+            if (optionalToken.isEmpty()) throw new UsuarioSemTokenException("Usuário Não possui token!");
+            Token token = optionalToken.get();
+
+            if (token.getSituacao() == Situacao.BLOQUEADO) {
+                if (token.getDataExpiracao().isBefore(LocalDateTime.now())) {
+                    token.setSituacao(Situacao.INATIVO);
+                } else {
+                    token.setSituacao(Situacao.ATIVO);
+                }
+            } else {
+                token.setSituacao(Situacao.BLOQUEADO);
+            }
+
+            tokenRepository.save(token);
+            return token.getSituacao();
+        }
+
+        throw new AlteracaoNegadaException("Não possui cargo para alterar a situação do token!");
     }
 }
