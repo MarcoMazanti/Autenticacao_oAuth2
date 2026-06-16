@@ -95,4 +95,8 @@ public class TokenService {
 
         return managementJWT.criarAccessToken(tokenDTO);
     }
+
+    public void atualizarSituacao(int idRequerinte, int idAtualizador) {
+
+    }
 }
