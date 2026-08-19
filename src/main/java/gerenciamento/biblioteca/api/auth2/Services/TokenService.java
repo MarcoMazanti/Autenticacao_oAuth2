@@ -2,6 +2,7 @@ package gerenciamento.biblioteca.api.auth2.Services;
 
 import gerenciamento.biblioteca.api.auth2.DTO.CreationTokenDTO;
 import gerenciamento.biblioteca.api.auth2.DTO.TokenCreatedDTO;
+import gerenciamento.biblioteca.api.auth2.DTO.UserInfoDTO;
 import gerenciamento.biblioteca.api.auth2.Entities.Roles;
 import gerenciamento.biblioteca.api.auth2.Entities.Situacao;
 import gerenciamento.biblioteca.api.auth2.Entities.Token;
@@ -17,6 +18,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -128,5 +130,38 @@ public class TokenService {
         }
 
         throw new AlteracaoNegadaException("Não possui cargo para alterar a situação do token!");
+    }
+
+    public UserInfoDTO getInfo(String accessToken) {
+        try {
+            validarToken(accessToken);
+
+            byte[] payloadBytes = Base64.getUrlDecoder().decode(accessToken.split("\\.")[1]);
+            JsonNode jsonNode = mapper.readTree(payloadBytes);
+
+            String sub = jsonNode.path("sub").asString();
+            String name = jsonNode.path("name").asString();
+            String email = jsonNode.path("email").asString();
+
+            boolean existe = usuarioRepository.existsById(Integer.parseInt(sub));
+
+            // Mapeia o array de roles do JSON para a lista do Enum
+            List<Roles> rolesList = new ArrayList<>();
+            JsonNode rolesNode = jsonNode.path("roles");
+            if (rolesNode.isArray()) {
+                for (JsonNode roleNode : rolesNode) {
+                    rolesList.add(Roles.valueOf(roleNode.asString()));
+                }
+            }
+
+            return new UserInfoDTO(sub, name, email, existe, rolesList);
+
+        } catch (ExpiredJwtException e) {
+            throw e; // Mantém a exceção original com a stacktrace preservada
+        } catch (RegistroInconsistenteException e) {
+            throw new RegistroInconsistenteException("Token inválido ou adulterado!");
+        } catch (Exception e) {
+            throw new RuntimeException("Erro ao processar o token JWT", e);
+        }
     }
 }
