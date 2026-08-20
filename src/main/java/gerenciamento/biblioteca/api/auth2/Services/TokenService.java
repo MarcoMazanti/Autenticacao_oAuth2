@@ -1,12 +1,10 @@
 package gerenciamento.biblioteca.api.auth2.Services;
 
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import gerenciamento.biblioteca.api.auth2.DTO.CreationTokenDTO;
 import gerenciamento.biblioteca.api.auth2.DTO.TokenCreatedDTO;
 import gerenciamento.biblioteca.api.auth2.DTO.UserInfoDTO;
-import gerenciamento.biblioteca.api.auth2.Entities.Roles;
-import gerenciamento.biblioteca.api.auth2.Entities.Situacao;
-import gerenciamento.biblioteca.api.auth2.Entities.Token;
-import gerenciamento.biblioteca.api.auth2.Entities.Usuario;
+import gerenciamento.biblioteca.api.auth2.Entities.*;
 import gerenciamento.biblioteca.api.auth2.Expections.*;
 import gerenciamento.biblioteca.api.auth2.Externals.BibliotecaAPI;
 import gerenciamento.biblioteca.api.auth2.Repositories.TokenRepository;
@@ -18,7 +16,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -32,6 +29,8 @@ public class TokenService {
     private UsuarioRepository usuarioRepository;
     @Autowired
     private BibliotecaAPI bibliotecaAPI;
+    @Autowired
+    private GoogleAuthService googleAuthService;
 
     private ManagementJWT managementJWT;
     private final static ObjectMapper mapper = new ObjectMapper();
@@ -163,5 +162,38 @@ public class TokenService {
         } catch (Exception e) {
             throw new RuntimeException("Erro ao processar o token JWT", e);
         }
+    }
+
+    public TokenCreatedDTO autenticarComGoogle(String idToken) {
+        // 1. Valida o ID Token do Google e extrai o Payload com segurança
+        GoogleIdToken.Payload payload = googleAuthService.validarEExtrairPayload(idToken);
+
+        String email = payload.getEmail();
+        Boolean emailVerified = payload.getEmailVerified();
+        String name = (String) payload.get("name");
+
+        // Caso o e-mail não esteja verificado, retorna um erro
+        if (!emailVerified) {
+            throw new IllegalArgumentException("O e-mail da conta do Google precisa estar verificado.");
+        }
+
+        // Obtém o usuário com base no e-mail, se não estiver cadastrado, é gerado uma nova conta para ele
+        Usuario usuario;
+        try {
+            usuario = bibliotecaAPI.getUsuarioByEmail(email);
+        } catch (RegistroInexistenteException e) {
+            usuario = new Usuario(name, email, email);
+            usuarioRepository.save(usuario);
+        }
+
+        // Gera o token com base no usuário obtido anteriormente
+        CreationTokenDTO creationDTO = new CreationTokenDTO(
+                usuario.getId(),
+                usuario.getNome(),
+                usuario.getEmail(),
+                bibliotecaAPI.getRolesByUserId(usuario.getId()).stream().map(Enum::toString).toArray(String[]::new)
+        );
+
+        return managementJWT.criarTokens(creationDTO);
     }
 }
