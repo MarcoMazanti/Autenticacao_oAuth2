@@ -1,6 +1,8 @@
 package gerenciamento.biblioteca.api.auth2.Externals;
 
 import gerenciamento.biblioteca.api.auth2.Entities.Roles;
+import gerenciamento.biblioteca.api.auth2.Entities.Usuario;
+import gerenciamento.biblioteca.api.auth2.Expections.RegistroInexistenteException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
@@ -32,12 +34,37 @@ public class BibliotecaAPI {
                     .build();
 
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            client.close();
 
             if (response.statusCode() == 200) {
                 return mapper.readValue(response.body(), mapper.getTypeFactory().constructCollectionType(List.class, Roles.class));
             }
 
             return List.of();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Usuario getUsuarioByEmail(String email) {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+            String url = this.url + "/api/users/email/" + email;
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("x-api-key", apiKey)
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            client.close();
+
+            if (response.statusCode() == 200) {
+                return mapper.readValue(response.body(), mapper.getTypeFactory().constructType(Usuario.class));
+            }
+
+            throw new RegistroInexistenteException("Não foi possível encontrar o usuário com o email: " + email + " no banco de dados.");
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
