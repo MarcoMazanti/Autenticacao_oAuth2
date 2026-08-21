@@ -34,7 +34,6 @@ public class BibliotecaAPI {
                     .build();
 
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            client.close();
 
             if (response.statusCode() == 200) {
                 return mapper.readValue(response.body(), mapper.getTypeFactory().constructCollectionType(List.class, Roles.class));
@@ -58,7 +57,6 @@ public class BibliotecaAPI {
                     .build();
 
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            client.close();
 
             if (response.statusCode() == 200) {
                 return mapper.readValue(response.body(), mapper.getTypeFactory().constructType(Usuario.class));

@@ -20,7 +20,7 @@ public class Token {
     private Usuario usuario;
     @NotNull
     private String refreshToken;
-    @Column(nullable = false, columnDefinition = "VARCHAR(9) DEFAULT 'ATIVO'")
+    @Column(name = "situacao", length = 9)
     @Enumerated(EnumType.STRING)
     private Situacao situacao;
     private LocalDateTime dataExpiracao;
