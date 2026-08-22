@@ -21,9 +21,8 @@ public class TokenController {
     }
 
     @GetMapping("/validate")
-    public ResponseEntity<Void> validateToken(@RequestHeader("Authorization")  String accessToken) {
-        tokenService.validarToken(accessToken);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<Boolean> validateToken(@RequestHeader("Authorization")  String accessToken) {
+        return ResponseEntity.ok(tokenService.validarToken(accessToken));
     }
 
     @PostMapping("/update")

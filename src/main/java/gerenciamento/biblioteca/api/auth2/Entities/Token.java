@@ -14,7 +14,7 @@ public class Token {
     @Id
     @Column(name = "id")
     private Integer id;
-    @OneToOne
+    @OneToOne(cascade = CascadeType.MERGE)
     @MapsId
     @JoinColumn(name = "id")
     private Usuario usuario;
@@ -22,8 +22,8 @@ public class Token {
     private String refreshToken;
     @Column(name = "situacao", length = 9)
     @Enumerated(EnumType.STRING)
-    private Situacao situacao;
-    private LocalDateTime dataExpiracao;
+    private Situacao situacao = Situacao.ATIVO;
+    private LocalDateTime dataExpiracao = LocalDateTime.now().plusDays(7);
 
     public Token(Integer id, String refreshToken) {
         this.id = id;

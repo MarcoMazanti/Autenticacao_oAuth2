@@ -1,11 +1,12 @@
 package gerenciamento.biblioteca.api.auth2.Externals;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import gerenciamento.biblioteca.api.auth2.Entities.Roles;
 import gerenciamento.biblioteca.api.auth2.Entities.Usuario;
 import gerenciamento.biblioteca.api.auth2.Expections.RegistroInexistenteException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import tools.jackson.databind.ObjectMapper;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -25,10 +26,10 @@ public class BibliotecaAPI {
     public List<Roles> getRolesByUserId(Integer userId) {
         try {
             HttpClient client = HttpClient.newHttpClient();
-            String url = this.url + "/api/users/roles/" + userId;
+            String requestUrl = this.url + "/api/users/roles/" + userId;
 
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
+                    .uri(URI.create(requestUrl))
                     .header("x-api-key", apiKey)
                     .GET()
                     .build();
@@ -36,22 +37,23 @@ public class BibliotecaAPI {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() == 200) {
-                return mapper.readValue(response.body(), mapper.getTypeFactory().constructCollectionType(List.class, Roles.class));
+                // TypeReference evita erros de casting de coleções/arrays no Jackson
+                return mapper.readValue(response.body(), new TypeReference<List<Roles>>() {});
             }
 
             return List.of();
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Erro ao comunicar com Biblioteca API (roles): " + e.getMessage(), e);
         }
     }
 
     public Usuario getUsuarioByEmail(String email) {
         try {
             HttpClient client = HttpClient.newHttpClient();
-            String url = this.url + "/api/users/email/" + email;
+            String requestUrl = this.url + "/api/users/email/" + email;
 
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
+                    .uri(URI.create(requestUrl))
                     .header("x-api-key", apiKey)
                     .GET()
                     .build();
@@ -59,12 +61,12 @@ public class BibliotecaAPI {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() == 200) {
-                return mapper.readValue(response.body(), mapper.getTypeFactory().constructType(Usuario.class));
+                return mapper.readValue(response.body(), Usuario.class);
             }
 
-            throw new RegistroInexistenteException("Não foi possível encontrar o usuário com o email: " + email + " no banco de dados.");
+            throw new RegistroInexistenteException("Não foi possível encontrar o usuário com o email: " + email);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Erro ao comunicar com Biblioteca API (usuario): " + e.getMessage(), e);
         }
     }
 }

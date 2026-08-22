@@ -1,4 +1,4 @@
-package gerenciamento.biblioteca.api.auth2.Configurations;
+package gerenciamento.biblioteca.api.auth2.Controllers.Adivice;
 
 import gerenciamento.biblioteca.api.auth2.DTO.External.ErrorResponse;
 import gerenciamento.biblioteca.api.auth2.Expections.*;
@@ -13,8 +13,6 @@ import java.time.LocalDateTime;
 
 @RestControllerAdvice
 public class GloblaExpectionHandler {
-    // Adicionar os demais possíveis erros aqui
-
     // Erro 400 - Bad Request
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Object> handleIllegalArgumentException(IllegalArgumentException ex) {

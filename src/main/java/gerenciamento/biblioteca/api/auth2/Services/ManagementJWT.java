@@ -6,6 +6,7 @@ import io.github.cdimascio.dotenv.Dotenv;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
@@ -15,6 +16,7 @@ import java.util.Date;
 
 import static gerenciamento.biblioteca.api.auth2.Application.SECRET_KEY;
 
+@Service
 public class ManagementJWT {
     private long EXPIRATION_TIME_MILLIS = 1000 * 60 * 30; // 30 minutos
     private SecretKey secretKey = null;

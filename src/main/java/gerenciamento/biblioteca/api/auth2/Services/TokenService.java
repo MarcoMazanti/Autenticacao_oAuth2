@@ -12,9 +12,8 @@ import gerenciamento.biblioteca.api.auth2.Repositories.UsuarioRepository;
 import io.jsonwebtoken.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -31,8 +30,9 @@ public class TokenService {
     private BibliotecaAPI bibliotecaAPI;
     @Autowired
     private GoogleAuthService googleAuthService;
-
+    @Autowired
     private ManagementJWT managementJWT;
+
     private final static ObjectMapper mapper = new ObjectMapper();
 
     public TokenService() {
@@ -52,13 +52,15 @@ public class TokenService {
         if (!usuario.getEmail().equals(tokenDTO.email()) || !usuario.getNome().equals(tokenDTO.name())) throw new RegistroInconsistenteException("O campo não bate com o que se encontra cadastrado no banco.");
 
         TokenCreatedDTO tokenCreatedDTO = managementJWT.criarTokens(tokenDTO);
-        Token token = new Token(tokenDTO.id(), tokenCreatedDTO.refreshToken());
+        System.out.println(tokenCreatedDTO);
+        Token token = new Token(usuario.getId(), usuario, tokenCreatedDTO.refreshToken());
+        System.out.println(token);
         tokenRepository.save(token);
 
         return tokenCreatedDTO;
     }
 
-    public void validarToken(String accessToken) {
+    public boolean validarToken(String accessToken) {
         try {
             Claims claims = Jwts.parserBuilder()
                     .setSigningKey(SECRET_KEY)
@@ -69,6 +71,8 @@ public class TokenService {
             int id = Integer.parseInt(claims.getSubject());
 
             if (id <= 0) throw new RegistroInconsistenteException("ID encontra-se incorreto (Menor ou igual a zero).");
+
+            return true;
         } catch (ExpiredJwtException e) {
             throw new ExpiredJwtException(e.getHeader(), e.getClaims(), "Token expirado!");
         } catch (JwtException | IllegalArgumentException e) {
@@ -82,23 +86,35 @@ public class TokenService {
         if (tokenOpt.isEmpty()) throw new RegistroInexistenteException("Token não encontrado no banco.");
         Token token = tokenOpt.get();
 
-        if (token.getSituacao() == Situacao.INATIVO || token.getDataExpiracao().isBefore(LocalDateTime.now())) throw new TokenExpiradoException("Token expirado.");
-        if (token.getSituacao() == Situacao.BLOQUEADO) throw new UsuarioBloqueadoException("Token bloqueado.");
+        if (token.getSituacao() == Situacao.INATIVO || token.getDataExpiracao().isBefore(LocalDateTime.now()))
+            throw new TokenExpiradoException("Token expirado.");
+        if (token.getSituacao() == Situacao.BLOQUEADO)
+            throw new UsuarioBloqueadoException("Token bloqueado.");
 
-        String midSplit = tokenCreatedDTO.accessToken().split("\\.")[1];
-        JsonNode payload = mapper.readTree(new String(Base64.getUrlDecoder().decode(midSplit)));
+        try {
+            String midSplit = tokenCreatedDTO.accessToken().split("\\.")[1];
+            byte[] payloadBytes = Base64.getUrlDecoder().decode(midSplit);
+            JsonNode payload = mapper.readTree(payloadBytes);
 
-        ArrayNode rolesNode = payload.get("roles").asArray();
-        ArrayList<String> roles = new ArrayList<>();
+            List<String> roles = new ArrayList<>();
+            JsonNode rolesNode = payload.path("roles");
 
-        for (JsonNode roleNode : rolesNode) roles.add(roleNode.asString());
-        CreationTokenDTO tokenDTO = new CreationTokenDTO(
-                token.getUsuario().getId(),
-                token.getUsuario().getNome(),
-                token.getUsuario().getEmail(),
-                roles.toArray(new String[0]));
+            if (rolesNode.isArray()) {
+                for (JsonNode roleNode : rolesNode) {
+                    roles.add(roleNode.asText());
+                }
+            }
 
-        return managementJWT.criarAccessToken(tokenDTO);
+            CreationTokenDTO tokenDTO = new CreationTokenDTO(
+                    token.getUsuario().getId(),
+                    token.getUsuario().getNome(),
+                    token.getUsuario().getEmail(),
+                    roles.toArray(new String[0]));
+
+            return managementJWT.criarAccessToken(tokenDTO);
+        } catch (Exception e) {
+            throw new RegistroInconsistenteException("Falha ao ler o payload do token JWT.");
+        }
     }
 
     public Situacao atualizarSituacao(int idRequerinte, int idAlvo) {
@@ -135,32 +151,34 @@ public class TokenService {
         try {
             validarToken(accessToken);
 
+            // 2. Decodifica o payload do JWT (segunda parte da String separada por ponto)
             byte[] payloadBytes = Base64.getUrlDecoder().decode(accessToken.split("\\.")[1]);
             JsonNode jsonNode = mapper.readTree(payloadBytes);
 
-            String sub = jsonNode.path("sub").asString();
-            String name = jsonNode.path("name").asString();
-            String email = jsonNode.path("email").asString();
+            // 3. Extrai as propriedades básicas do JSON usando o .asText()
+            String sub = jsonNode.path("sub").asText();
+            String name = jsonNode.path("name").asText();
+            String email = jsonNode.path("email").asText();
 
             boolean existe = usuarioRepository.existsById(Integer.parseInt(sub));
 
-            // Mapeia o array de roles do JSON para a lista do Enum
+            // 4. Mapeia o array de roles com segurança
             List<Roles> rolesList = new ArrayList<>();
             JsonNode rolesNode = jsonNode.path("roles");
             if (rolesNode.isArray()) {
                 for (JsonNode roleNode : rolesNode) {
-                    rolesList.add(Roles.valueOf(roleNode.asString()));
+                    rolesList.add(Roles.valueOf(roleNode.asText()));
                 }
             }
 
             return new UserInfoDTO(sub, name, email, existe, rolesList);
 
-        } catch (ExpiredJwtException e) {
-            throw e; // Mantém a exceção original com a stacktrace preservada
-        } catch (RegistroInconsistenteException e) {
-            throw new RegistroInconsistenteException("Token inválido ou adulterado!");
+        } catch (ExpiredJwtException | RegistroInconsistenteException e) {
+            throw e;
+        } catch (IllegalArgumentException e) {
+            throw new RegistroInconsistenteException("Erro na conversão das roles ou dados do token inválidos.");
         } catch (Exception e) {
-            throw new RuntimeException("Erro ao processar o token JWT", e);
+            throw new RuntimeException("Erro ao processar o payload do token JWT", e);
         }
     }
 
